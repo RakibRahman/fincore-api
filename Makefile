@@ -1,11 +1,8 @@
-POSTGRES_CONTAINER := postgres18.1
-POSTGRES_USER := root
-POSTGRES_PASSWORD := secret
-POSTGRES_DB := fincore_db
-POSTGRES_PORT := 5433
+# Load environment variables from .env file
+include .env
+export
 
-# Correct data directory for PostgreSQL 18.x
-POSTGRES_VOLUME := pg18data
+# PostgreSQL data directory for version 18.x
 POSTGRES_DATA_DIR := /var/lib/postgresql/18/main
 
 # Start Postgres
@@ -42,10 +39,10 @@ stop-postgres:
 	-@docker stop $(POSTGRES_CONTAINER)
 
 migrate-db-up:
-	migrate -path db/migration -database "postgresql://root:secret@localhost:5433/fincore_db?sslmode=disable" -verbose up
+	migrate -path db/migration -database "postgresql://$(POSTGRES_USER):$(POSTGRES_PASSWORD)@localhost:$(POSTGRES_PORT)/$(POSTGRES_DB)?sslmode=disable" -verbose up
 
 migrate-db-down:
-	migrate -path db/migration -database "postgresql://root:secret@localhost:5433/fincore_db?sslmode=disable" -verbose down
+	migrate -path db/migration -database "postgresql://$(POSTGRES_USER):$(POSTGRES_PASSWORD)@localhost:$(POSTGRES_PORT)/$(POSTGRES_DB)?sslmode=disable" -verbose down
 
 sqlc:
 	sqlc generate
