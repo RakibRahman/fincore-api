@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/RakibRahman/fincore-api/utils"
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/stretchr/testify/require"
 )
 
@@ -92,4 +93,74 @@ func TestListUsers(t *testing.T) {
 		require.NotEmpty(t, user.FirstName)
 		require.NotEmpty(t, user.LastName)
 	}
+}
+
+// Negative test cases
+
+func TestGetUserNotFound(t *testing.T) {
+	ctx := context.Background()
+	// Use a non-existent UUID
+	var fakeID pgtype.UUID
+	fakeID.Scan("00000000-0000-0000-0000-000000000000")
+
+	user, err := testQueries.GetUser(ctx, fakeID)
+
+	require.Error(t, err)
+	require.Empty(t, user.ID)
+}
+
+func TestCreateUserDuplicateEmail(t *testing.T) {
+	user1 := createRandomUser(t)
+	ctx := context.Background()
+
+	// Try to create another user with the same email (should violate unique constraint)
+	arg := CreateUserParams{
+		FirstName:    utils.RandomString(6),
+		LastName:     utils.RandomString(4),
+		Email:        user1.Email, // Duplicate email
+		PasswordHash: utils.RandomString(12),
+	}
+
+	user2, err := testQueries.CreateUser(ctx, arg)
+
+	require.Error(t, err)
+	require.Empty(t, user2.ID)
+}
+
+func TestUpdateUserNotFound(t *testing.T) {
+	ctx := context.Background()
+	// Try to update a non-existent user
+	var fakeID pgtype.UUID
+	fakeID.Scan("00000000-0000-0000-0000-000000000000")
+
+	arg := UpdateUserParams{
+		ID:        fakeID,
+		FirstName: utils.RandomString(6),
+		LastName:  utils.RandomString(4),
+		Email:     utils.RandomEmail(),
+	}
+
+	user, err := testQueries.UpdateUser(ctx, arg)
+
+	require.Error(t, err)
+	require.Empty(t, user.ID)
+}
+
+func TestUpdateUserDuplicateEmail(t *testing.T) {
+	user1 := createRandomUser(t)
+	user2 := createRandomUser(t)
+	ctx := context.Background()
+
+	// Try to update user2 with user1's email
+	arg := UpdateUserParams{
+		ID:        user2.ID,
+		FirstName: user2.FirstName,
+		LastName:  user2.LastName,
+		Email:     user1.Email, // Duplicate email
+	}
+
+	updatedUser, err := testQueries.UpdateUser(ctx, arg)
+
+	require.Error(t, err)
+	require.Empty(t, updatedUser.ID)
 }
