@@ -9,7 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func createRandomUser(t *testing.T) User {
+func createRandomUserWithQueries(t *testing.T, q *Queries) User {
 	arg := CreateUserParams{
 		FirstName:    utils.RandomString(6),
 		LastName:     utils.RandomString(4),
@@ -17,25 +17,26 @@ func createRandomUser(t *testing.T) User {
 		PasswordHash: utils.RandomString(12),
 	}
 	ctx := context.Background()
-	user, err := testQueries.CreateUser(ctx, arg)
+	user, err := q.CreateUser(ctx, arg)
 	require.NoError(t, err)
 	require.NotEmpty(t, user)
 	return user
 }
 
 func TestCreateUser(t *testing.T) {
-	user := createRandomUser(t)
+	_, q := createTestTx(t)
+	user := createRandomUserWithQueries(t, q)
 
 	require.NotZero(t, user.ID)
 	require.NotZero(t, user.CreatedAt)
 	require.NotEmpty(t, user.Email)
-
 }
 
 func TestGetUser(t *testing.T) {
-	user1 := createRandomUser(t)
+	_, q := createTestTx(t)
+	user1 := createRandomUserWithQueries(t, q)
 	ctx := context.Background()
-	user2, err := testQueries.GetUser(ctx, user1.ID)
+	user2, err := q.GetUser(ctx, user1.ID)
 
 	require.NoError(t, err)
 	require.NotEmpty(t, user2)
@@ -46,7 +47,8 @@ func TestGetUser(t *testing.T) {
 }
 
 func TestUpdateUser(t *testing.T) {
-	user1 := createRandomUser(t)
+	_, q := createTestTx(t)
+	user1 := createRandomUserWithQueries(t, q)
 	ctx := context.Background()
 
 	arg := UpdateUserParams{
@@ -56,7 +58,7 @@ func TestUpdateUser(t *testing.T) {
 		Email:     utils.RandomEmail(),
 	}
 
-	user2, err := testQueries.UpdateUser(ctx, arg)
+	user2, err := q.UpdateUser(ctx, arg)
 
 	require.NoError(t, err)
 	require.NotEmpty(t, user2)
@@ -68,11 +70,12 @@ func TestUpdateUser(t *testing.T) {
 }
 
 func TestListUsers(t *testing.T) {
+	_, q := createTestTx(t)
 	ctx := context.Background()
 	const userLimit = 5
-	var userList1 []User
+
 	for i := 0; i < userLimit; i++ {
-		userList1 = append(userList1, createRandomUser(t))
+		createRandomUserWithQueries(t, q)
 	}
 
 	params := ListUsersParams{
@@ -80,13 +83,10 @@ func TestListUsers(t *testing.T) {
 		Offset: 0,
 	}
 
-	users, err := testQueries.ListUsers(ctx, params)
+	users, err := q.ListUsers(ctx, params)
 
 	require.NoError(t, err)
-	require.NotEmpty(t, users)
-
-	require.GreaterOrEqual(t, len(users), userLimit)
-
+	require.Len(t, users, userLimit)
 	for _, user := range users {
 		require.NotEmpty(t, user.ID)
 		require.NotEmpty(t, user.Email)
@@ -98,22 +98,23 @@ func TestListUsers(t *testing.T) {
 // Negative test cases
 
 func TestGetUserNotFound(t *testing.T) {
+	_, q := createTestTx(t)
 	ctx := context.Background()
 	// Use a non-existent UUID
 	var fakeID pgtype.UUID
 	fakeID.Scan("00000000-0000-0000-0000-000000000000")
 
-	user, err := testQueries.GetUser(ctx, fakeID)
+	user, err := q.GetUser(ctx, fakeID)
 
 	require.Error(t, err)
 	require.Empty(t, user.ID)
 }
 
 func TestCreateUserDuplicateEmail(t *testing.T) {
-	user1 := createRandomUser(t)
+	_, q := createTestTx(t)
+	user1 := createRandomUserWithQueries(t, q)
 	ctx := context.Background()
 
-	// Try to create another user with the same email (should violate unique constraint)
 	arg := CreateUserParams{
 		FirstName:    utils.RandomString(6),
 		LastName:     utils.RandomString(4),
@@ -121,13 +122,14 @@ func TestCreateUserDuplicateEmail(t *testing.T) {
 		PasswordHash: utils.RandomString(12),
 	}
 
-	user2, err := testQueries.CreateUser(ctx, arg)
+	user2, err := q.CreateUser(ctx, arg)
 
 	require.Error(t, err)
 	require.Empty(t, user2.ID)
 }
 
 func TestUpdateUserNotFound(t *testing.T) {
+	_, q := createTestTx(t)
 	ctx := context.Background()
 	// Try to update a non-existent user
 	var fakeID pgtype.UUID
@@ -140,15 +142,16 @@ func TestUpdateUserNotFound(t *testing.T) {
 		Email:     utils.RandomEmail(),
 	}
 
-	user, err := testQueries.UpdateUser(ctx, arg)
+	user, err := q.UpdateUser(ctx, arg)
 
 	require.Error(t, err)
 	require.Empty(t, user.ID)
 }
 
 func TestUpdateUserDuplicateEmail(t *testing.T) {
-	user1 := createRandomUser(t)
-	user2 := createRandomUser(t)
+	_, q := createTestTx(t)
+	user1 := createRandomUserWithQueries(t, q)
+	user2 := createRandomUserWithQueries(t, q)
 	ctx := context.Background()
 
 	// Try to update user2 with user1's email
@@ -159,7 +162,7 @@ func TestUpdateUserDuplicateEmail(t *testing.T) {
 		Email:     user1.Email, // Duplicate email
 	}
 
-	updatedUser, err := testQueries.UpdateUser(ctx, arg)
+	updatedUser, err := q.UpdateUser(ctx, arg)
 
 	require.Error(t, err)
 	require.Empty(t, updatedUser.ID)

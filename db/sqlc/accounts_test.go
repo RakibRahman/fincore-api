@@ -9,9 +9,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func createRandomAccount(t *testing.T) Account {
-	// First create a user to own the account
-	user := createRandomUser(t)
+func createRandomAccountWithQueries(t *testing.T, q *Queries) Account {
+	user := createRandomUserWithQueries(t, q)
 
 	arg := CreateAccountParams{
 		OwnerID:      user.ID,
@@ -20,7 +19,7 @@ func createRandomAccount(t *testing.T) Account {
 	}
 
 	ctx := context.Background()
-	account, err := testQueries.CreateAccount(ctx, arg)
+	account, err := q.CreateAccount(ctx, arg)
 	require.NoError(t, err)
 	require.NotEmpty(t, account)
 
@@ -28,7 +27,8 @@ func createRandomAccount(t *testing.T) Account {
 }
 
 func TestCreateAccount(t *testing.T) {
-	account := createRandomAccount(t)
+	_, q := createTestTx(t)
+	account := createRandomAccountWithQueries(t, q)
 
 	require.NotZero(t, account.ID)
 	require.NotZero(t, account.OwnerID)
@@ -38,9 +38,10 @@ func TestCreateAccount(t *testing.T) {
 }
 
 func TestGetAccount(t *testing.T) {
-	account1 := createRandomAccount(t)
+	_, q := createTestTx(t)
+	account1 := createRandomAccountWithQueries(t, q)
 	ctx := context.Background()
-	account2, err := testQueries.GetAccount(ctx, account1.ID)
+	account2, err := q.GetAccount(ctx, account1.ID)
 
 	require.NoError(t, err)
 	require.NotEmpty(t, account2)
@@ -53,7 +54,8 @@ func TestGetAccount(t *testing.T) {
 }
 
 func TestUpdateAccount(t *testing.T) {
-	account1 := createRandomAccount(t)
+	_, q := createTestTx(t)
+	account1 := createRandomAccountWithQueries(t, q)
 	ctx := context.Background()
 
 	arg := UpdateAccountParams{
@@ -61,7 +63,7 @@ func TestUpdateAccount(t *testing.T) {
 		BalanceCents: utils.RandomInt(0, 10000),
 	}
 
-	account2, err := testQueries.UpdateAccount(ctx, arg)
+	account2, err := q.UpdateAccount(ctx, arg)
 
 	require.NoError(t, err)
 	require.NotEmpty(t, account2)
@@ -73,24 +75,26 @@ func TestUpdateAccount(t *testing.T) {
 }
 
 func TestDeleteAccount(t *testing.T) {
-	account1 := createRandomAccount(t)
+	_, q := createTestTx(t)
+	account1 := createRandomAccountWithQueries(t, q)
 	ctx := context.Background()
 
-	err := testQueries.DeleteAccount(ctx, account1.ID)
+	err := q.DeleteAccount(ctx, account1.ID)
 	require.NoError(t, err)
 
 	// Verify account is deleted
-	account2, err := testQueries.GetAccount(ctx, account1.ID)
+	account2, err := q.GetAccount(ctx, account1.ID)
 	require.Error(t, err)
 	require.Empty(t, account2)
 }
 
 func TestListAccounts(t *testing.T) {
+	_, q := createTestTx(t)
 	ctx := context.Background()
 	const accountLimit = 5
 
 	for i := 0; i < accountLimit; i++ {
-		createRandomAccount(t)
+		createRandomAccountWithQueries(t, q)
 	}
 
 	params := ListAccountsParams{
@@ -98,12 +102,10 @@ func TestListAccounts(t *testing.T) {
 		Offset: 0,
 	}
 
-	accounts, err := testQueries.ListAccounts(ctx, params)
+	accounts, err := q.ListAccounts(ctx, params)
 
 	require.NoError(t, err)
-	require.NotEmpty(t, accounts)
-
-	require.GreaterOrEqual(t, len(accounts), accountLimit)
+	require.Len(t, accounts, accountLimit) // Exact count since we're in isolated transaction
 
 	for _, account := range accounts {
 		require.NotEmpty(t, account.ID)
@@ -116,17 +118,19 @@ func TestListAccounts(t *testing.T) {
 // Negative test cases
 
 func TestGetAccountNotFound(t *testing.T) {
+	_, q := createTestTx(t)
 	ctx := context.Background()
 	// Use a non-existent account ID
 	fakeID := int64(99999999)
 
-	account, err := testQueries.GetAccount(ctx, fakeID)
+	account, err := q.GetAccount(ctx, fakeID)
 
 	require.Error(t, err)
 	require.Empty(t, account.ID)
 }
 
 func TestCreateAccountInvalidOwner(t *testing.T) {
+	_, q := createTestTx(t)
 	ctx := context.Background()
 	// Try to create account with non-existent owner
 	var fakeOwnerID pgtype.UUID
@@ -138,13 +142,14 @@ func TestCreateAccountInvalidOwner(t *testing.T) {
 		Currency:     CurrencyUSD,
 	}
 
-	account, err := testQueries.CreateAccount(ctx, arg)
+	account, err := q.CreateAccount(ctx, arg)
 
 	require.Error(t, err) // Should fail due to foreign key constraint
 	require.Empty(t, account.ID)
 }
 
 func TestUpdateAccountNotFound(t *testing.T) {
+	_, q := createTestTx(t)
 	ctx := context.Background()
 	// Try to update a non-existent account
 	fakeID := int64(99999999)
@@ -154,18 +159,19 @@ func TestUpdateAccountNotFound(t *testing.T) {
 		BalanceCents: utils.RandomInt(0, 10000),
 	}
 
-	account, err := testQueries.UpdateAccount(ctx, arg)
+	account, err := q.UpdateAccount(ctx, arg)
 
 	require.Error(t, err)
 	require.Empty(t, account.ID)
 }
 
 func TestDeleteAccountNotFound(t *testing.T) {
+	_, q := createTestTx(t)
 	ctx := context.Background()
 	// Try to delete a non-existent account
 	fakeID := int64(99999999)
 
-	err := testQueries.DeleteAccount(ctx, fakeID)
+	err := q.DeleteAccount(ctx, fakeID)
 
 	// Delete might not error on non-existent ID (depends on implementation)
 	// But we can verify the account doesn't exist

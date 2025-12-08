@@ -9,10 +9,9 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func createRandomTransfer(t *testing.T) Transfer {
-	// Create two accounts for the transfer
-	fromAccount := createRandomAccount(t)
-	toAccount := createRandomAccount(t)
+func createRandomTransferWithQueries(t *testing.T, q *Queries) Transfer {
+	fromAccount := createRandomAccountWithQueries(t, q)
+	toAccount := createRandomAccountWithQueries(t, q)
 
 	arg := CreateTransferParams{
 		FromAccountID: fromAccount.ID,
@@ -21,7 +20,7 @@ func createRandomTransfer(t *testing.T) Transfer {
 	}
 
 	ctx := context.Background()
-	transfer, err := testQueries.CreateTransfer(ctx, arg)
+	transfer, err := q.CreateTransfer(ctx, arg)
 	require.NoError(t, err)
 	require.NotEmpty(t, transfer)
 
@@ -29,7 +28,8 @@ func createRandomTransfer(t *testing.T) Transfer {
 }
 
 func TestCreateTransfer(t *testing.T) {
-	transfer := createRandomTransfer(t)
+	_, q := createTestTx(t)
+	transfer := createRandomTransferWithQueries(t, q)
 
 	require.NotZero(t, transfer.ID)
 	require.NotZero(t, transfer.FromAccountID)
@@ -41,9 +41,10 @@ func TestCreateTransfer(t *testing.T) {
 }
 
 func TestGetTransfer(t *testing.T) {
-	transfer1 := createRandomTransfer(t)
+	_, q := createTestTx(t)
+	transfer1 := createRandomTransferWithQueries(t, q)
 	ctx := context.Background()
-	transfer2, err := testQueries.GetTransfer(ctx, transfer1.ID)
+	transfer2, err := q.GetTransfer(ctx, transfer1.ID)
 
 	require.NoError(t, err)
 	require.NotEmpty(t, transfer2)
@@ -56,11 +57,12 @@ func TestGetTransfer(t *testing.T) {
 }
 
 func TestListTransfers(t *testing.T) {
+	_, q := createTestTx(t)
 	ctx := context.Background()
 	const transferLimit = 5
 
 	for i := 0; i < transferLimit; i++ {
-		createRandomTransfer(t)
+		createRandomTransferWithQueries(t, q)
 	}
 
 	params := ListTransfersParams{
@@ -68,12 +70,10 @@ func TestListTransfers(t *testing.T) {
 		Offset: 0,
 	}
 
-	transfers, err := testQueries.ListTransfers(ctx, params)
+	transfers, err := q.ListTransfers(ctx, params)
 
 	require.NoError(t, err)
-	require.NotEmpty(t, transfers)
-
-	require.GreaterOrEqual(t, len(transfers), transferLimit)
+	require.Len(t, transfers, transferLimit) // Exact count since we're in isolated transaction
 
 	for _, transfer := range transfers {
 		require.NotEmpty(t, transfer.ID)
@@ -87,20 +87,22 @@ func TestListTransfers(t *testing.T) {
 // Negative test cases
 
 func TestGetTransferNotFound(t *testing.T) {
+	_, q := createTestTx(t)
 	ctx := context.Background()
 	// Use a non-existent transfer ID
 	var fakeID pgtype.UUID
 	fakeID.Scan("00000000-0000-0000-0000-000000000000")
 
-	transfer, err := testQueries.GetTransfer(ctx, fakeID)
+	transfer, err := q.GetTransfer(ctx, fakeID)
 
 	require.Error(t, err)
 	require.Empty(t, transfer.ID)
 }
 
 func TestCreateTransferInvalidFromAccount(t *testing.T) {
+	_, q := createTestTx(t)
 	ctx := context.Background()
-	toAccount := createRandomAccount(t)
+	toAccount := createRandomAccountWithQueries(t, q)
 	fakeFromAccountID := int64(99999999)
 
 	arg := CreateTransferParams{
@@ -109,15 +111,16 @@ func TestCreateTransferInvalidFromAccount(t *testing.T) {
 		AmountCents:   utils.RandomInt(100, 5000),
 	}
 
-	transfer, err := testQueries.CreateTransfer(ctx, arg)
+	transfer, err := q.CreateTransfer(ctx, arg)
 
 	require.Error(t, err) // Should fail due to foreign key constraint
 	require.Empty(t, transfer.ID)
 }
 
 func TestCreateTransferInvalidToAccount(t *testing.T) {
+	_, q := createTestTx(t)
 	ctx := context.Background()
-	fromAccount := createRandomAccount(t)
+	fromAccount := createRandomAccountWithQueries(t, q)
 	fakeToAccountID := int64(99999999)
 
 	arg := CreateTransferParams{
@@ -126,15 +129,16 @@ func TestCreateTransferInvalidToAccount(t *testing.T) {
 		AmountCents:   utils.RandomInt(100, 5000),
 	}
 
-	transfer, err := testQueries.CreateTransfer(ctx, arg)
+	transfer, err := q.CreateTransfer(ctx, arg)
 
 	require.Error(t, err) // Should fail due to foreign key constraint
 	require.Empty(t, transfer.ID)
 }
 
 func TestCreateTransferSameAccount(t *testing.T) {
+	_, q := createTestTx(t)
 	ctx := context.Background()
-	account := createRandomAccount(t)
+	account := createRandomAccountWithQueries(t, q)
 
 	// Try to transfer to the same account
 	arg := CreateTransferParams{
@@ -143,7 +147,7 @@ func TestCreateTransferSameAccount(t *testing.T) {
 		AmountCents:   utils.RandomInt(100, 5000),
 	}
 
-	transfer, err := testQueries.CreateTransfer(ctx, arg)
+	transfer, err := q.CreateTransfer(ctx, arg)
 
 	// This might succeed or fail depending on your business logic/constraints
 	// If you have a CHECK constraint preventing same-account transfers, it should error

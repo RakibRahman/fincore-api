@@ -9,9 +9,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func createRandomTransaction(t *testing.T) Transaction {
-	// First create an account for the transaction
-	account := createRandomAccount(t)
+func createRandomTransactionWithQueries(t *testing.T, q *Queries) Transaction {
+	account := createRandomAccountWithQueries(t, q)
 
 	amountCents := utils.RandomInt(100, 5000)
 	balanceAfter := account.BalanceCents + amountCents
@@ -24,7 +23,7 @@ func createRandomTransaction(t *testing.T) Transaction {
 	}
 
 	ctx := context.Background()
-	transaction, err := testQueries.CreateTransaction(ctx, arg)
+	transaction, err := q.CreateTransaction(ctx, arg)
 	require.NoError(t, err)
 	require.NotEmpty(t, transaction)
 
@@ -32,7 +31,8 @@ func createRandomTransaction(t *testing.T) Transaction {
 }
 
 func TestCreateTransaction(t *testing.T) {
-	transaction := createRandomTransaction(t)
+	_, q := createTestTx(t)
+	transaction := createRandomTransactionWithQueries(t, q)
 
 	require.NotZero(t, transaction.ID)
 	require.NotZero(t, transaction.AccountID)
@@ -43,9 +43,10 @@ func TestCreateTransaction(t *testing.T) {
 }
 
 func TestGetTransaction(t *testing.T) {
-	transaction1 := createRandomTransaction(t)
+	_, q := createTestTx(t)
+	transaction1 := createRandomTransactionWithQueries(t, q)
 	ctx := context.Background()
-	transaction2, err := testQueries.GetTransaction(ctx, transaction1.ID)
+	transaction2, err := q.GetTransaction(ctx, transaction1.ID)
 
 	require.NoError(t, err)
 	require.NotEmpty(t, transaction2)
@@ -58,11 +59,12 @@ func TestGetTransaction(t *testing.T) {
 }
 
 func TestListTransactions(t *testing.T) {
+	_, q := createTestTx(t)
 	ctx := context.Background()
 	const transactionLimit = 5
 
 	// Create an account and add multiple transactions to it
-	account := createRandomAccount(t)
+	account := createRandomAccountWithQueries(t, q)
 
 	for i := 0; i < transactionLimit; i++ {
 		amountCents := utils.RandomInt(100, 5000)
@@ -75,7 +77,7 @@ func TestListTransactions(t *testing.T) {
 			BalanceAfterCents: balanceAfter,
 		}
 
-		_, err := testQueries.CreateTransaction(ctx, arg)
+		_, err := q.CreateTransaction(ctx, arg)
 		require.NoError(t, err)
 	}
 
@@ -85,12 +87,10 @@ func TestListTransactions(t *testing.T) {
 		Offset:    0,
 	}
 
-	transactions, err := testQueries.ListTransactions(ctx, params)
+	transactions, err := q.ListTransactions(ctx, params)
 
 	require.NoError(t, err)
-	require.NotEmpty(t, transactions)
-
-	require.GreaterOrEqual(t, len(transactions), transactionLimit)
+	require.Len(t, transactions, transactionLimit) // Exact count since we're in isolated transaction
 
 	for _, transaction := range transactions {
 		require.NotEmpty(t, transaction.ID)
@@ -104,18 +104,20 @@ func TestListTransactions(t *testing.T) {
 // Negative test cases
 
 func TestGetTransactionNotFound(t *testing.T) {
+	_, q := createTestTx(t)
 	ctx := context.Background()
 	// Use a non-existent transaction ID
 	var fakeID pgtype.UUID
 	fakeID.Scan("00000000-0000-0000-0000-000000000000")
 
-	transaction, err := testQueries.GetTransaction(ctx, fakeID)
+	transaction, err := q.GetTransaction(ctx, fakeID)
 
 	require.Error(t, err)
 	require.Empty(t, transaction.ID)
 }
 
 func TestCreateTransactionInvalidAccount(t *testing.T) {
+	_, q := createTestTx(t)
 	ctx := context.Background()
 	// Try to create transaction with non-existent account
 	fakeAccountID := int64(99999999)
@@ -127,16 +129,17 @@ func TestCreateTransactionInvalidAccount(t *testing.T) {
 		BalanceAfterCents: utils.RandomInt(1000, 10000),
 	}
 
-	transaction, err := testQueries.CreateTransaction(ctx, arg)
+	transaction, err := q.CreateTransaction(ctx, arg)
 
 	require.Error(t, err) // Should fail due to foreign key constraint
 	require.Empty(t, transaction.ID)
 }
 
 func TestListTransactionsEmptyResult(t *testing.T) {
+	_, q := createTestTx(t)
 	ctx := context.Background()
 	// Create an account with no transactions
-	account := createRandomAccount(t)
+	account := createRandomAccountWithQueries(t, q)
 
 	params := ListTransactionsParams{
 		AccountID: account.ID,
@@ -144,7 +147,7 @@ func TestListTransactionsEmptyResult(t *testing.T) {
 		Offset:    0,
 	}
 
-	transactions, err := testQueries.ListTransactions(ctx, params)
+	transactions, err := q.ListTransactions(ctx, params)
 
 	require.NoError(t, err)
 	require.Empty(t, transactions) // Should return empty list, not error
