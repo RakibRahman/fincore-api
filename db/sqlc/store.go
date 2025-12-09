@@ -3,7 +3,6 @@ package sqlc
 import (
 	"context"
 
-	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -32,9 +31,11 @@ func NewStore(pool *pgxpool.Pool) *Store {
 type TxFunc func(q *Queries) error
 
 func (store *Store) executeTransaction(ctx context.Context, fn TxFunc) error {
-	tx, err := store.pool.BeginTx(ctx, pgx.TxOptions{
-		IsoLevel: pgx.Serializable,
-	})
+	// tx, err := store.pool.BeginTx(ctx, pgx.TxOptions{
+	// 	IsoLevel: pgx.Serializable,
+	// })
+
+	tx, err := store.pool.Begin(ctx)
 	if err != nil {
 		return err
 	}
