@@ -58,12 +58,12 @@ func TestUpdateAccount(t *testing.T) {
 	account1 := createRandomAccountWithQueries(t, q)
 	ctx := context.Background()
 
-	arg := UpdateAccountParams{
+	arg := UpdateAccountBalanceParams{
 		ID:           account1.ID,
 		BalanceCents: utils.RandomInt(0, 10000),
 	}
 
-	account2, err := q.UpdateAccount(ctx, arg)
+	account2, err := q.UpdateAccountBalance(ctx, arg)
 
 	require.NoError(t, err)
 	require.NotEmpty(t, account2)
@@ -154,12 +154,12 @@ func TestUpdateAccountNotFound(t *testing.T) {
 	// Try to update a non-existent account
 	fakeID := int64(99999999)
 
-	arg := UpdateAccountParams{
+	arg := UpdateAccountBalanceParams{
 		ID:           fakeID,
 		BalanceCents: utils.RandomInt(0, 10000),
 	}
 
-	account, err := q.UpdateAccount(ctx, arg)
+	account, err := q.UpdateAccountBalance(ctx, arg)
 
 	require.Error(t, err)
 	require.Empty(t, account.ID)

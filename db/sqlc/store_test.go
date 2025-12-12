@@ -80,10 +80,10 @@ func TestTransferMoneyTx(t *testing.T) {
 	}
 
 	// Check final account balances after all transfers
-	updatedFromAccount, err := store.GetAccount(context.Background(), fromAccount.ID)
+	updatedFromAccount, err := store.GetAccountForUpdate(context.Background(), fromAccount.ID)
 	require.NoError(t, err)
 
-	updatedToAccount, err := store.GetAccount(context.Background(), toAccount.ID)
+	updatedToAccount, err := store.GetAccountForUpdate(context.Background(), toAccount.ID)
 	require.NoError(t, err)
 
 	// Verify the total amount transferred
