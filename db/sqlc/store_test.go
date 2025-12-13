@@ -10,8 +10,6 @@ import (
 func TestTransferMoneyTx(t *testing.T) {
 	store := NewStore(testDB)
 
-	// Create accounts directly using store (not in a test transaction)
-	// These will be committed to the database and available for TransferMoneyTx
 	fromAccount := createRandomAccountWithQueries(t, store.Queries)
 	toAccount := createRandomAccountWithQueries(t, store.Queries)
 
@@ -89,4 +87,61 @@ func TestTransferMoneyTx(t *testing.T) {
 	// Verify the total amount transferred
 	require.Equal(t, fromAccount.BalanceCents-int64(n)*amount, updatedFromAccount.BalanceCents)
 	require.Equal(t, toAccount.BalanceCents+int64(n)*amount, updatedToAccount.BalanceCents)
+}
+
+func TestTransferMoneyTx_Bidirectional(t *testing.T) {
+	store := NewStore(testDB)
+
+	account1 := createRandomAccountWithQueries(t, store.Queries)
+	account2 := createRandomAccountWithQueries(t, store.Queries)
+
+	n := 5
+	amount := int64(10)
+
+	//channels
+	errs := make(chan error)
+	results := make(chan TransferMoneyResult)
+
+	for range n {
+		go func() {
+			result, err := store.TransferMoneyTx(context.Background(), CreateTransferParams{
+				FromAccountID: account1.ID,
+				ToAccountID:   account2.ID,
+				AmountCents:   amount,
+			})
+
+			errs <- err
+			results <- result
+		}()
+	}
+	for range n {
+		go func() {
+			result, err := store.TransferMoneyTx(context.Background(), CreateTransferParams{
+				FromAccountID: account2.ID,
+				ToAccountID:   account1.ID,
+				AmountCents:   amount,
+			})
+
+			errs <- err
+			results <- result
+		}()
+	}
+
+	for range 2 * n {
+		err := <-errs
+		result := <-results
+
+		require.NoError(t, err)
+		require.NotEmpty(t, result)
+	}
+
+	updatedAccount1, err := store.GetAccount(context.Background(), account1.ID)
+	require.NoError(t, err)
+	require.NotEmpty(t, updatedAccount1)
+	require.Equal(t, updatedAccount1.BalanceCents, account1.BalanceCents)
+
+	updatedAccount2, err := store.GetAccount(context.Background(), account2.ID)
+	require.NoError(t, err)
+	require.NotEmpty(t, updatedAccount2)
+	require.Equal(t, updatedAccount2.BalanceCents, account2.BalanceCents)
 }

@@ -173,7 +173,5 @@ func TestDeleteAccountNotFound(t *testing.T) {
 
 	err := q.DeleteAccount(ctx, fakeID)
 
-	// Delete might not error on non-existent ID (depends on implementation)
-	// But we can verify the account doesn't exist
 	require.NoError(t, err) // DELETE typically doesn't error if ID not found
 }
