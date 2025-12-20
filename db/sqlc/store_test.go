@@ -160,7 +160,7 @@ func TestTransferMoneyTxManyToOne(t *testing.T) {
 	errs := make(chan error)
 	results := make(chan TransferMoneyResult)
 
-	for i := 0; i < n; i++ {
+	for i := range n {
 		go func(index int) {
 			result, err := store.TransferMoneyTx(context.Background(), CreateTransferParams{
 				FromAccountID: fromAccounts[index].ID,
@@ -172,7 +172,7 @@ func TestTransferMoneyTxManyToOne(t *testing.T) {
 		}(i)
 	}
 
-	for i := 0; i < n; i++ {
+	for range n {
 		err := <-errs
 		result := <-results
 
@@ -219,7 +219,7 @@ func TestTransferMoneyTxManyToOne(t *testing.T) {
 	require.Equal(t, toAccount.BalanceCents+int64(n)*amount, updatedToAccount.BalanceCents)
 
 	// Check final balances for all fromAccounts
-	for i := 0; i < n; i++ {
+	for i := range n {
 		updatedFromAccount, err := store.GetAccount(context.Background(), fromAccounts[i].ID)
 		require.NoError(t, err)
 		require.Equal(t, fromAccounts[i].BalanceCents-amount, updatedFromAccount.BalanceCents)
