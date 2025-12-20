@@ -145,3 +145,82 @@ func TestTransferMoneyTx_Bidirectional(t *testing.T) {
 	require.NotEmpty(t, updatedAccount2)
 	require.Equal(t, updatedAccount2.BalanceCents, account2.BalanceCents)
 }
+
+func TestTransferMoneyTxManyToOne(t *testing.T) {
+	store := NewStore(testDB)
+	var fromAccounts []Account
+	toAccount := createRandomAccountWithQueries(t, store.Queries)
+	n := 10
+	amount := int64(5)
+
+	for range n {
+		fromAccounts = append(fromAccounts, createRandomAccountWithQueries(t, store.Queries))
+	}
+
+	errs := make(chan error)
+	results := make(chan TransferMoneyResult)
+
+	for i := 0; i < n; i++ {
+		go func(index int) {
+			result, err := store.TransferMoneyTx(context.Background(), CreateTransferParams{
+				FromAccountID: fromAccounts[index].ID,
+				ToAccountID:   toAccount.ID,
+				AmountCents:   amount,
+			})
+			errs <- err
+			results <- result
+		}(i)
+	}
+
+	for i := 0; i < n; i++ {
+		err := <-errs
+		result := <-results
+
+		require.NoError(t, err)
+		require.NotEmpty(t, result)
+
+		// Check transfer
+		transfer := result.Transfer
+		require.NotEmpty(t, transfer)
+		require.Equal(t, toAccount.ID, transfer.ToAccountID)
+		require.Equal(t, amount, transfer.AmountCents)
+		require.NotZero(t, transfer.ID)
+		require.NotZero(t, transfer.CreatedAt)
+
+		_, err = store.GetTransfer(context.Background(), transfer.ID)
+		require.NoError(t, err)
+
+		// Check transaction (fromAccount)
+		fromTranx := result.FromTx
+		require.NotEmpty(t, fromTranx)
+		require.Equal(t, -amount, fromTranx.AmountCents)
+		require.NotZero(t, fromTranx.ID)
+		require.NotZero(t, fromTranx.CreatedAt)
+
+		_, err = store.GetTransaction(context.Background(), fromTranx.ID)
+		require.NoError(t, err)
+
+		// Check transaction (toAccount)
+		toTranx := result.ToTx
+		require.NotEmpty(t, toTranx)
+		require.Equal(t, toAccount.ID, toTranx.AccountID)
+		require.Equal(t, amount, toTranx.AmountCents)
+		require.NotZero(t, toTranx.ID)
+		require.NotZero(t, toTranx.CreatedAt)
+
+		_, err = store.GetTransaction(context.Background(), toTranx.ID)
+		require.NoError(t, err)
+	}
+
+	// Check final balance for toAccount
+	updatedToAccount, err := store.GetAccount(context.Background(), toAccount.ID)
+	require.NoError(t, err)
+	require.Equal(t, toAccount.BalanceCents+int64(n)*amount, updatedToAccount.BalanceCents)
+
+	// Check final balances for all fromAccounts
+	for i := 0; i < n; i++ {
+		updatedFromAccount, err := store.GetAccount(context.Background(), fromAccounts[i].ID)
+		require.NoError(t, err)
+		require.Equal(t, fromAccounts[i].BalanceCents-amount, updatedFromAccount.BalanceCents)
+	}
+}
