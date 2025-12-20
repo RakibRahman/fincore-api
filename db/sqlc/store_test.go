@@ -193,6 +193,7 @@ func TestTransferMoneyTxManyToOne(t *testing.T) {
 		// Check transaction (fromAccount)
 		fromTranx := result.FromTx
 		require.NotEmpty(t, fromTranx)
+		require.Equal(t, transfer.FromAccountID, fromTranx.AccountID)
 		require.Equal(t, -amount, fromTranx.AmountCents)
 		require.NotZero(t, fromTranx.ID)
 		require.NotZero(t, fromTranx.CreatedAt)
