@@ -225,3 +225,28 @@ func TestTransferMoneyTxManyToOne(t *testing.T) {
 		require.Equal(t, fromAccounts[i].BalanceCents-amount, updatedFromAccount.BalanceCents)
 	}
 }
+
+func TestDepositMoneyTx(t *testing.T) {
+	store := NewStore(testDB)
+	account := createRandomAccountWithQueries(t, store.Queries)
+	amount := int64(10)
+
+	result, err := store.DepositMoneyTx(context.Background(), DepositMoneyParams{
+		accountID: account.ID,
+		amount:    amount,
+	})
+
+	require.NoError(t, err)
+	require.NotEmpty(t, result.Account)
+
+	require.Equal(t, account.ID, result.Transaction.AccountID)
+	require.Equal(t, TransactionTypeDeposit, result.Transaction.Type)
+	require.Equal(t, amount, result.Transaction.AmountCents)
+	require.Equal(t, account.BalanceCents+amount, result.Transaction.BalanceAfterCents)
+
+	require.Equal(t, account.BalanceCents+amount, result.Account.BalanceCents)
+
+	updatedAccount, err := store.GetAccount(context.Background(), account.ID)
+	require.NoError(t, err)
+	require.Equal(t, result.Account.BalanceCents, updatedAccount.BalanceCents)
+}
