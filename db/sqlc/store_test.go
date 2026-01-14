@@ -354,3 +354,111 @@ func TestConcurrentWithdrawMoneyTx(t *testing.T) {
 	expectedBalance := account.BalanceCents - (int64(n) * amount)
 	require.Equal(t, expectedBalance, updatedAccount.BalanceCents)
 }
+
+func TestWithdrawMoneyTx_InsufficientBalance(t *testing.T) {
+	store := NewStore(testDB)
+	account := createRandomAccountWithQueries(t, store.Queries)
+
+	// Try to withdraw more than current balance
+	amount := account.BalanceCents + 100
+
+	_, err := store.WithdrawMoneyTx(context.Background(), AccountTransactionParams{
+		AccountID: account.ID,
+		Amount:    amount,
+	})
+
+	// Should fail with insufficient balance error
+	require.Error(t, err)
+	require.ErrorIs(t, err, ErrInsufficientBalance)
+
+	// Verify balance unchanged
+	updatedAccount, err := store.GetAccount(context.Background(), account.ID)
+	require.NoError(t, err)
+	require.Equal(t, account.BalanceCents, updatedAccount.BalanceCents)
+}
+
+func TestWithdrawMoneyTx_InvalidAmount(t *testing.T) {
+	store := NewStore(testDB)
+	account := createRandomAccountWithQueries(t, store.Queries)
+
+	testCases := []struct {
+		name   string
+		amount int64
+	}{
+		{
+			name:   "negative amount",
+			amount: -100,
+		},
+		{
+			name:   "zero amount",
+			amount: 0,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			_, err := store.WithdrawMoneyTx(context.Background(), AccountTransactionParams{
+				AccountID: account.ID,
+				Amount:    tc.amount,
+			})
+
+			// Should fail with invalid amount error
+			require.Error(t, err)
+			require.ErrorIs(t, err, ErrInvalidAmount)
+
+			// Verify balance unchanged
+			updatedAccount, err := store.GetAccount(context.Background(), account.ID)
+			require.NoError(t, err)
+			require.Equal(t, account.BalanceCents, updatedAccount.BalanceCents)
+		})
+	}
+}
+
+func TestTransferMoneyTx_SameAccount(t *testing.T) {
+	store := NewStore(testDB)
+	account := createRandomAccountWithQueries(t, store.Queries)
+	amount := int64(100)
+
+	// Try to transfer to the same account
+	_, err := store.TransferMoneyTx(context.Background(), CreateTransferParams{
+		FromAccountID: account.ID,
+		ToAccountID:   account.ID,
+		AmountCents:   amount,
+	})
+
+	// Should fail
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "cannot transfer to the same account")
+
+	// Verify balance unchanged
+	updatedAccount, err := store.GetAccount(context.Background(), account.ID)
+	require.NoError(t, err)
+	require.Equal(t, account.BalanceCents, updatedAccount.BalanceCents)
+}
+
+func TestTransferMoneyTx_InsufficientBalance(t *testing.T) {
+	store := NewStore(testDB)
+	fromAccount := createRandomAccountWithQueries(t, store.Queries)
+	toAccount := createRandomAccountWithQueries(t, store.Queries)
+
+	// Try to transfer more than available balance
+	amount := fromAccount.BalanceCents + 100
+
+	_, err := store.TransferMoneyTx(context.Background(), CreateTransferParams{
+		FromAccountID: fromAccount.ID,
+		ToAccountID:   toAccount.ID,
+		AmountCents:   amount,
+	})
+
+	// Should fail (transaction will be rolled back)
+	require.Error(t, err)
+
+	// Verify both balances unchanged
+	updatedFromAccount, err := store.GetAccount(context.Background(), fromAccount.ID)
+	require.NoError(t, err)
+	require.Equal(t, fromAccount.BalanceCents, updatedFromAccount.BalanceCents)
+
+	updatedToAccount, err := store.GetAccount(context.Background(), toAccount.ID)
+	require.NoError(t, err)
+	require.Equal(t, toAccount.BalanceCents, updatedToAccount.BalanceCents)
+}

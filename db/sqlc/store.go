@@ -95,6 +95,11 @@ func (store *Store) TransferMoneyTx(ctx context.Context, arg CreateTransferParam
 			}
 		}
 
+		// Validate sender has sufficient balance
+		if transferMoneyResult.FromAccount.BalanceCents < arg.AmountCents {
+			return ErrInsufficientBalance
+		}
+
 		// Create transfer record
 		transferMoneyResult.Transfer, err = q.CreateTransfer(ctx, arg)
 		if err != nil {
