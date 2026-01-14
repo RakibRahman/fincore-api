@@ -21,7 +21,7 @@ type TransferMoneyResult struct {
 	FromTx      Transaction
 	ToTx        Transaction
 }
-type DepositMoneyResult struct {
+type AccountTransactionResult struct {
 	Transaction Transaction
 	Account     Account
 }
@@ -35,6 +35,11 @@ func NewStore(pool *pgxpool.Pool) *Store {
 
 // TxFunc is a function that executes database operations within a transaction
 type TxFunc func(q *Queries) error
+
+var (
+	ErrInsufficientBalance = errors.New("insufficient balance for withdrawal")
+	ErrInvalidAmount       = errors.New("withdrawal amount must be positive")
+)
 
 func (store *Store) executeTransaction(ctx context.Context, fn TxFunc) error {
 	tx, err := store.pool.BeginTx(ctx, pgx.TxOptions{
@@ -142,31 +147,31 @@ func (store *Store) TransferMoneyTx(ctx context.Context, arg CreateTransferParam
 	return transferMoneyResult, err
 }
 
-type DepositMoneyParams struct {
-	accountID int64
-	amount    int64
+type AccountTransactionParams struct {
+	AccountID int64
+	Amount    int64
 }
 
-func (store *Store) DepositMoneyTx(ctx context.Context, arg DepositMoneyParams) (DepositMoneyResult, error) {
-	var depositMoneyResult DepositMoneyResult
+func (store *Store) DepositMoneyTx(ctx context.Context, arg AccountTransactionParams) (AccountTransactionResult, error) {
+	var depositMoneyResult AccountTransactionResult
 	err := store.executeTransaction(ctx, func(q *Queries) error {
 		var err error
-		depositMoneyResult.Account, err = q.GetAccountForUpdate(ctx, arg.accountID)
+		depositMoneyResult.Account, err = q.GetAccountForUpdate(ctx, arg.AccountID)
 		if err != nil {
 			return err
 		}
 		depositMoneyResult.Transaction, err = q.CreateTransaction(ctx, CreateTransactionParams{
-			AccountID:         arg.accountID,
+			AccountID:         arg.AccountID,
 			Type:              TransactionTypeDeposit,
-			AmountCents:       arg.amount,
-			BalanceAfterCents: depositMoneyResult.Account.BalanceCents + arg.amount,
+			AmountCents:       arg.Amount,
+			BalanceAfterCents: depositMoneyResult.Account.BalanceCents + arg.Amount,
 		})
 		if err != nil {
 			return err
 		}
 		depositMoneyResult.Account, err = q.UpdateAccountBalance(ctx, UpdateAccountBalanceParams{
-			ID:           arg.accountID,
-			BalanceCents: depositMoneyResult.Account.BalanceCents + arg.amount,
+			ID:           arg.AccountID,
+			BalanceCents: depositMoneyResult.Account.BalanceCents + arg.Amount,
 		})
 		if err != nil {
 			return err
@@ -175,4 +180,44 @@ func (store *Store) DepositMoneyTx(ctx context.Context, arg DepositMoneyParams) 
 	})
 
 	return depositMoneyResult, err
+}
+
+func (store *Store) WithdrawMoneyTx(ctx context.Context, arg AccountTransactionParams) (AccountTransactionResult, error) {
+	var withdrawMoneyResult AccountTransactionResult
+	if arg.Amount <= 0 {
+		return AccountTransactionResult{}, ErrInvalidAmount
+	}
+
+	err := store.executeTransaction(ctx, func(q *Queries) error {
+		var err error
+		withdrawMoneyResult.Account, err = q.GetAccountForUpdate(ctx, arg.AccountID)
+		if err != nil {
+			return err
+		}
+
+		if withdrawMoneyResult.Account.BalanceCents < arg.Amount {
+			return ErrInsufficientBalance
+		}
+
+		balanceAfterWithdrawal := withdrawMoneyResult.Account.BalanceCents - arg.Amount
+		withdrawMoneyResult.Transaction, err = q.CreateTransaction(ctx, CreateTransactionParams{
+			AccountID:         arg.AccountID,
+			Type:              TransactionTypeWithdrawal,
+			AmountCents:       -arg.Amount,
+			BalanceAfterCents: balanceAfterWithdrawal,
+		})
+		if err != nil {
+			return err
+		}
+		withdrawMoneyResult.Account, err = q.UpdateAccountBalance(ctx, UpdateAccountBalanceParams{
+			ID:           arg.AccountID,
+			BalanceCents: balanceAfterWithdrawal,
+		})
+		if err != nil {
+			return err
+		}
+		return nil
+	})
+
+	return withdrawMoneyResult, err
 }
