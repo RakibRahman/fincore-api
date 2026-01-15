@@ -7,7 +7,7 @@ INSERT INTO users (
 RETURNING *;
 
 -- name: GetUser :one
-SELECT * FROM users
+SELECT id, first_name, last_name, email FROM users
 WHERE id = $1 LIMIT 1;
 
 -- name: ListUsers :many
@@ -25,5 +25,3 @@ SET
     email = $4
 WHERE id = $1
 RETURNING id, first_name, last_name, email;
-
---name 
