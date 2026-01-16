@@ -5,12 +5,15 @@ import (
 
 	"github.com/RakibRahman/fincore-api/db/sqlc"
 	"github.com/gin-gonic/gin"
-	"github.com/jackc/pgx/v5/pgtype"
 )
 
 type listUsersRequest struct {
 	Page  int32 `form:"page" binding:"min=0"`
 	Limit int32 `form:"limit" binding:"min=1"`
+}
+
+type getUserByEmail struct {
+	Email string
 }
 
 func errorResponse(err error) gin.H {
@@ -37,34 +40,31 @@ func (server *Server) createUser(ctx *gin.Context) {
 	ctx.JSON(http.StatusOK, user)
 }
 
-func (server *Server) getUser(ctx *gin.Context) {
-	userIdStr := ctx.Param("id")
+func (server *Server) getUsers(ctx *gin.Context) {
+	email := ctx.Query("email")
 
-	// Convert string to pgtype.UUID
-	var userId pgtype.UUID
-	err := userId.Scan(userIdStr)
-	if err != nil {
-		ctx.JSON(http.StatusBadRequest, errorResponse(err))
+	if email != "" {
+		server.getUserByEmail(ctx, email)
 		return
 	}
 
-	user, err := server.store.GetUser(ctx, userId)
+	server.listUsers(ctx)
+}
+
+func (server *Server) getUserByEmail(ctx *gin.Context, email string) {
+	user, err := server.store.GetUserByEmail(ctx, email)
 	if err != nil {
 		ctx.JSON(http.StatusInternalServerError, errorResponse(err))
 		return
 	}
-
 	ctx.JSON(http.StatusOK, user)
 }
 
 func (server *Server) listUsers(ctx *gin.Context) {
 	var req listUsersRequest
-
-	// Set defaults first
 	req.Page = 0
 	req.Limit = 20
 
-	// Bind will override defaults if params provided
 	if err := ctx.ShouldBindQuery(&req); err != nil {
 		ctx.JSON(http.StatusBadRequest, errorResponse(err))
 		return
@@ -75,13 +75,10 @@ func (server *Server) listUsers(ctx *gin.Context) {
 		Limit:  req.Limit,
 		Offset: offset,
 	})
-
 	if err != nil {
 		ctx.JSON(http.StatusInternalServerError, errorResponse(err))
 		return
 	}
 
-	ctx.JSON(http.StatusOK, gin.H{
-		"data": users,
-	})
+	ctx.JSON(http.StatusOK, gin.H{"data": users})
 }

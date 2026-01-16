@@ -6,9 +6,9 @@ INSERT INTO users (
 )
 RETURNING *;
 
--- name: GetUser :one
+-- name: GetUserByEmail :one
 SELECT id, first_name, last_name, email FROM users
-WHERE id = $1 LIMIT 1;
+WHERE email = $1 LIMIT 1;
 
 -- name: ListUsers :many
 SELECT id, first_name, last_name, email

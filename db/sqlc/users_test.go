@@ -36,7 +36,7 @@ func TestGetUser(t *testing.T) {
 	_, q := createTestTx(t)
 	user1 := createRandomUserWithQueries(t, q)
 	ctx := context.Background()
-	user2, err := q.GetUser(ctx, user1.ID)
+	user2, err := q.GetUserByEmail(ctx, user1.Email)
 
 	require.NoError(t, err)
 	require.NotEmpty(t, user2)
@@ -100,14 +100,11 @@ func TestListUsers(t *testing.T) {
 func TestGetUserNotFound(t *testing.T) {
 	_, q := createTestTx(t)
 	ctx := context.Background()
-	// Use a non-existent UUID
-	var fakeID pgtype.UUID
-	fakeID.Scan("00000000-0000-0000-0000-000000000000")
 
-	user, err := q.GetUser(ctx, fakeID)
+	user, err := q.GetUserByEmail(ctx, "dummy111@fake.com")
 
 	require.Error(t, err)
-	require.Empty(t, user.ID)
+	require.Empty(t, user.Email)
 }
 
 func TestCreateUserDuplicateEmail(t *testing.T) {

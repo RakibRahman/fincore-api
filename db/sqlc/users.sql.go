@@ -46,21 +46,21 @@ func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, e
 	return i, err
 }
 
-const getUser = `-- name: GetUser :one
+const getUserByEmail = `-- name: GetUserByEmail :one
 SELECT id, first_name, last_name, email FROM users
-WHERE id = $1 LIMIT 1
+WHERE email = $1 LIMIT 1
 `
 
-type GetUserRow struct {
+type GetUserByEmailRow struct {
 	ID        pgtype.UUID
 	FirstName string
 	LastName  string
 	Email     string
 }
 
-func (q *Queries) GetUser(ctx context.Context, id pgtype.UUID) (GetUserRow, error) {
-	row := q.db.QueryRow(ctx, getUser, id)
-	var i GetUserRow
+func (q *Queries) GetUserByEmail(ctx context.Context, email string) (GetUserByEmailRow, error) {
+	row := q.db.QueryRow(ctx, getUserByEmail, email)
+	var i GetUserByEmailRow
 	err := row.Scan(
 		&i.ID,
 		&i.FirstName,

@@ -23,8 +23,7 @@ func NewServer(store *sqlc.Store) *Server {
 func (server *Server) setupRoutes(router *gin.Engine) {
 	// User Routes
 	router.POST("/users", server.createUser)
-	router.GET("/users", server.listUsers)
-	router.GET("/users/:id", server.getUser)
+	router.GET("/users", server.getUsers)
 }
 
 func (server *Server) Start(address string) error {
