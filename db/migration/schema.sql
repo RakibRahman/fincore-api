@@ -33,7 +33,8 @@ CREATE TABLE "users" (
   "last_name" varchar NOT NULL,
   "email" varchar UNIQUE NOT NULL,
   "password_hash" varchar NOT NULL,
-  "created_at" timestamptz DEFAULT (now())
+  "created_at" timestamptz DEFAULT (now()),
+  "updated_at" timestamptz NOT NULL DEFAULT (now())
 );
 
 CREATE TABLE "accounts" (
