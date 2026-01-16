@@ -234,4 +234,5 @@ type User struct {
 	Email        string
 	PasswordHash string
 	CreatedAt    pgtype.Timestamptz
+	UpdatedAt    pgtype.Timestamptz
 }

@@ -17,7 +17,7 @@ INSERT INTO users (
 ) VALUES (
   $1, $2, $3, $4
 )
-RETURNING id, first_name, last_name, email, password_hash, created_at
+RETURNING id, first_name, last_name, email, password_hash, created_at, updated_at
 `
 
 type CreateUserParams struct {
@@ -42,6 +42,7 @@ func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, e
 		&i.Email,
 		&i.PasswordHash,
 		&i.CreatedAt,
+		&i.UpdatedAt,
 	)
 	return i, err
 }
@@ -61,6 +62,30 @@ type GetUserByEmailRow struct {
 func (q *Queries) GetUserByEmail(ctx context.Context, email string) (GetUserByEmailRow, error) {
 	row := q.db.QueryRow(ctx, getUserByEmail, email)
 	var i GetUserByEmailRow
+	err := row.Scan(
+		&i.ID,
+		&i.FirstName,
+		&i.LastName,
+		&i.Email,
+	)
+	return i, err
+}
+
+const getUserById = `-- name: GetUserById :one
+SELECT id, first_name, last_name, email FROM users
+WHERE id = $1 LIMIT 1
+`
+
+type GetUserByIdRow struct {
+	ID        pgtype.UUID
+	FirstName string
+	LastName  string
+	Email     string
+}
+
+func (q *Queries) GetUserById(ctx context.Context, id pgtype.UUID) (GetUserByIdRow, error) {
+	row := q.db.QueryRow(ctx, getUserById, id)
+	var i GetUserByIdRow
 	err := row.Scan(
 		&i.ID,
 		&i.FirstName,
@@ -117,41 +142,39 @@ func (q *Queries) ListUsers(ctx context.Context, arg ListUsersParams) ([]ListUse
 
 const updateUser = `-- name: UpdateUser :one
 UPDATE users
-SET 
-    first_name = $2,
-    last_name = $3,
-    email = $4
-WHERE id = $1
-RETURNING id, first_name, last_name, email
+SET
+    first_name = COALESCE($1, first_name),
+    last_name = COALESCE($2, last_name),
+    updated_at = NOW()
+WHERE id = $3
+RETURNING id, email, first_name, last_name, created_at, updated_at
 `
 
 type UpdateUserParams struct {
+	FirstName pgtype.Text
+	LastName  pgtype.Text
 	ID        pgtype.UUID
-	FirstName string
-	LastName  string
-	Email     string
 }
 
 type UpdateUserRow struct {
 	ID        pgtype.UUID
+	Email     string
 	FirstName string
 	LastName  string
-	Email     string
+	CreatedAt pgtype.Timestamptz
+	UpdatedAt pgtype.Timestamptz
 }
 
 func (q *Queries) UpdateUser(ctx context.Context, arg UpdateUserParams) (UpdateUserRow, error) {
-	row := q.db.QueryRow(ctx, updateUser,
-		arg.ID,
-		arg.FirstName,
-		arg.LastName,
-		arg.Email,
-	)
+	row := q.db.QueryRow(ctx, updateUser, arg.FirstName, arg.LastName, arg.ID)
 	var i UpdateUserRow
 	err := row.Scan(
 		&i.ID,
+		&i.Email,
 		&i.FirstName,
 		&i.LastName,
-		&i.Email,
+		&i.CreatedAt,
+		&i.UpdatedAt,
 	)
 	return i, err
 }
