@@ -16,14 +16,10 @@ type getUserByEmail struct {
 	Email string
 }
 
-func errorResponse(err error) gin.H {
-	return gin.H{"error": err.Error()}
-}
-
 func (server *Server) createUser(ctx *gin.Context) {
 	var req sqlc.CreateUserParams
 	if err := ctx.ShouldBindJSON(&req); err != nil {
-		ctx.JSON(http.StatusBadRequest, errorResponse(err))
+		ctx.Error(err)
 		return
 	}
 
@@ -34,7 +30,7 @@ func (server *Server) createUser(ctx *gin.Context) {
 		LastName:     req.LastName,
 	})
 	if err != nil {
-		ctx.JSON(http.StatusInternalServerError, errorResponse(err))
+		ctx.Error(err)
 		return
 	}
 	ctx.JSON(http.StatusOK, user)
@@ -54,7 +50,7 @@ func (server *Server) getUsers(ctx *gin.Context) {
 func (server *Server) getUserByEmail(ctx *gin.Context, email string) {
 	user, err := server.store.GetUserByEmail(ctx, email)
 	if err != nil {
-		ctx.JSON(http.StatusInternalServerError, errorResponse(err))
+		ctx.Error(err)
 		return
 	}
 	ctx.JSON(http.StatusOK, user)
@@ -66,7 +62,7 @@ func (server *Server) listUsers(ctx *gin.Context) {
 	req.Limit = 20
 
 	if err := ctx.ShouldBindQuery(&req); err != nil {
-		ctx.JSON(http.StatusBadRequest, errorResponse(err))
+		ctx.Error(err)
 		return
 	}
 
@@ -76,7 +72,7 @@ func (server *Server) listUsers(ctx *gin.Context) {
 		Offset: offset,
 	})
 	if err != nil {
-		ctx.JSON(http.StatusInternalServerError, errorResponse(err))
+		ctx.Error(err)
 		return
 	}
 

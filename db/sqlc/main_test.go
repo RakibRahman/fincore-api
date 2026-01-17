@@ -10,7 +10,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-const testDBSource = "postgresql://root:secret@localhost:5433/fincore_db?sslmode=disable"
+const testDBSource = "postgresql://root:secret@localhost:5535/fincore_db?sslmode=disable"
 
 var testQueries *Queries
 var testDB *pgxpool.Pool

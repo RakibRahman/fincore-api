@@ -1,6 +1,7 @@
 package api
 
 import (
+	"github.com/RakibRahman/fincore-api/api/middleware"
 	"github.com/RakibRahman/fincore-api/db/sqlc"
 	"github.com/gin-gonic/gin"
 )
@@ -15,6 +16,13 @@ func NewServer(store *sqlc.Store) *Server {
 		store: store,
 	}
 	router := gin.Default()
+
+	// Register middleware in order of execution
+	// 1. Logger - logs all requests
+	router.Use(middleware.Logger())
+	// 2. Error Handler - handles errors from handlers (must be last)
+	router.Use(middleware.ErrorHandler())
+
 	server.setupRoutes(router)
 	server.router = router
 	return server

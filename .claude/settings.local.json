@@ -2,7 +2,11 @@
   "permissions": {
     "allow": [
       "Bash(tree:*)",
-      "Bash(go test:*)"
+      "Bash(go test:*)",
+      "Bash(netsh interface ipv4 show excludedportrange:*)",
+      "Bash(docker rm:*)",
+      "Bash(make:*)",
+      "Bash(go build:*)"
     ],
     "deny": [],
     "ask": []
