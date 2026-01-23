@@ -101,6 +101,9 @@ func isUniqueViolation(err error) bool {
 // This should be registered as the LAST middleware in the chain
 func ErrorHandler() gin.HandlerFunc {
 	return func(c *gin.Context) {
+		// This c is a gin.Context object
+		// It's automatically passed by Gin when the middleware is called
+
 		// Process the request
 		c.Next()
 
@@ -125,7 +128,7 @@ func handleError(c *gin.Context, err error) {
 		return
 	}
 
-	// 1. Check if it's already an AppError
+	// 1. Check if it's already an AppError (Checks if err is an *AppError)
 	if appErr, ok := err.(*AppError); ok {
 		c.JSON(getStatusCode(appErr), gin.H{"error": appErr})
 		return
