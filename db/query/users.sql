@@ -6,8 +6,12 @@ INSERT INTO users (
 )
 RETURNING *;
 
--- name: GetUser :one
-SELECT * FROM users
+-- name: GetUserByEmail :one
+SELECT id, first_name, last_name, email FROM users
+WHERE email = $1 LIMIT 1;
+
+-- name: GetUserById :one
+SELECT id, first_name, last_name, email FROM users
 WHERE id = $1 LIMIT 1;
 
 -- name: ListUsers :many
@@ -19,11 +23,10 @@ OFFSET $2;
 
 -- name: UpdateUser :one
 UPDATE users
-SET 
-    first_name = $2,
-    last_name = $3,
-    email = $4
-WHERE id = $1
-RETURNING id, first_name, last_name, email;
+SET
+    first_name = COALESCE(sqlc.narg(first_name), first_name),
+    last_name = COALESCE(sqlc.narg(last_name), last_name),
+    updated_at = NOW()
+WHERE id = sqlc.arg('id')
+RETURNING id, email, first_name, last_name, created_at, updated_at;
 
---name 

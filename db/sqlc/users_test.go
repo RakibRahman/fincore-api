@@ -29,6 +29,7 @@ func TestCreateUser(t *testing.T) {
 
 	require.NotZero(t, user.ID)
 	require.NotZero(t, user.CreatedAt)
+	require.NotZero(t, user.UpdatedAt)
 	require.NotEmpty(t, user.Email)
 }
 
@@ -36,7 +37,7 @@ func TestGetUser(t *testing.T) {
 	_, q := createTestTx(t)
 	user1 := createRandomUserWithQueries(t, q)
 	ctx := context.Background()
-	user2, err := q.GetUser(ctx, user1.ID)
+	user2, err := q.GetUserByEmail(ctx, user1.Email)
 
 	require.NoError(t, err)
 	require.NotEmpty(t, user2)
@@ -51,11 +52,13 @@ func TestUpdateUser(t *testing.T) {
 	user1 := createRandomUserWithQueries(t, q)
 	ctx := context.Background()
 
+	newFirstName := pgtype.Text{String: utils.RandomString(6), Valid: true}
+	newLastName := pgtype.Text{String: utils.RandomString(4), Valid: true}
+
 	arg := UpdateUserParams{
 		ID:        user1.ID,
-		FirstName: utils.RandomString(6),
-		LastName:  utils.RandomString(4),
-		Email:     utils.RandomEmail(),
+		FirstName: newFirstName,
+		LastName:  newLastName,
 	}
 
 	user2, err := q.UpdateUser(ctx, arg)
@@ -64,9 +67,10 @@ func TestUpdateUser(t *testing.T) {
 	require.NotEmpty(t, user2)
 
 	require.Equal(t, user1.ID, user2.ID)
-	require.Equal(t, arg.FirstName, user2.FirstName)
-	require.Equal(t, arg.LastName, user2.LastName)
-	require.Equal(t, arg.Email, user2.Email)
+	require.Equal(t, user1.Email, user2.Email) // Email should not change
+	require.Equal(t, newFirstName.String, user2.FirstName)
+	require.Equal(t, newLastName.String, user2.LastName)
+	require.NotZero(t, user2.UpdatedAt) // UpdatedAt should be set
 }
 
 func TestListUsers(t *testing.T) {
@@ -100,14 +104,11 @@ func TestListUsers(t *testing.T) {
 func TestGetUserNotFound(t *testing.T) {
 	_, q := createTestTx(t)
 	ctx := context.Background()
-	// Use a non-existent UUID
-	var fakeID pgtype.UUID
-	fakeID.Scan("00000000-0000-0000-0000-000000000000")
 
-	user, err := q.GetUser(ctx, fakeID)
+	user, err := q.GetUserByEmail(ctx, "dummy111@fake.com")
 
 	require.Error(t, err)
-	require.Empty(t, user.ID)
+	require.Empty(t, user.Email)
 }
 
 func TestCreateUserDuplicateEmail(t *testing.T) {
@@ -137,9 +138,8 @@ func TestUpdateUserNotFound(t *testing.T) {
 
 	arg := UpdateUserParams{
 		ID:        fakeID,
-		FirstName: utils.RandomString(6),
-		LastName:  utils.RandomString(4),
-		Email:     utils.RandomEmail(),
+		FirstName: pgtype.Text{String: utils.RandomString(6), Valid: true},
+		LastName:  pgtype.Text{String: utils.RandomString(4), Valid: true},
 	}
 
 	user, err := q.UpdateUser(ctx, arg)
@@ -148,22 +148,25 @@ func TestUpdateUserNotFound(t *testing.T) {
 	require.Empty(t, user.ID)
 }
 
-func TestUpdateUserDuplicateEmail(t *testing.T) {
+func TestUpdateUserPartialUpdate(t *testing.T) {
 	_, q := createTestTx(t)
 	user1 := createRandomUserWithQueries(t, q)
-	user2 := createRandomUserWithQueries(t, q)
 	ctx := context.Background()
 
-	// Try to update user2 with user1's email
+	// Only update first name (last name should remain unchanged)
+	newFirstName := pgtype.Text{String: utils.RandomString(6), Valid: true}
+
 	arg := UpdateUserParams{
-		ID:        user2.ID,
-		FirstName: user2.FirstName,
-		LastName:  user2.LastName,
-		Email:     user1.Email, // Duplicate email
+		ID:        user1.ID,
+		FirstName: newFirstName,
+		LastName:  pgtype.Text{Valid: false}, // NULL value, should keep existing
 	}
 
-	updatedUser, err := q.UpdateUser(ctx, arg)
+	user2, err := q.UpdateUser(ctx, arg)
 
-	require.Error(t, err)
-	require.Empty(t, updatedUser.ID)
+	require.NoError(t, err)
+	require.NotEmpty(t, user2)
+	require.Equal(t, user1.ID, user2.ID)
+	require.Equal(t, newFirstName.String, user2.FirstName)
+	require.Equal(t, user1.LastName, user2.LastName) // Should remain unchanged
 }

@@ -1,0 +1,39 @@
+package api
+
+import (
+	"github.com/RakibRahman/fincore-api/api/middleware"
+	"github.com/RakibRahman/fincore-api/db/sqlc"
+	"github.com/gin-gonic/gin"
+)
+
+type Server struct {
+	store  *sqlc.Store // db layer
+	router *gin.Engine // GIN HTTP Router
+}
+
+func NewServer(store *sqlc.Store) *Server {
+	server := &Server{
+		store: store,
+	}
+	router := gin.Default()
+
+	// Register middleware in order of execution
+	// 1. Logger - logs all requests
+	router.Use(middleware.Logger())
+	// 2. Error Handler - handles errors from handlers (must be last)
+	router.Use(middleware.ErrorHandler())
+
+	server.setupRoutes(router)
+	server.router = router
+	return server
+}
+
+func (server *Server) setupRoutes(router *gin.Engine) {
+	// User Routes
+	router.POST("/users", server.createUser)
+	router.GET("/users", server.getUsers)
+}
+
+func (server *Server) Start(address string) error {
+	return server.router.Run(address)
+}

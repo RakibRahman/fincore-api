@@ -52,3 +52,6 @@ test:
 
 test-race:
 	go test -race ./db/sqlc
+
+server:
+	go run main.go
